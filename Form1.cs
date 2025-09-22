@@ -42,6 +42,17 @@ public partial class Form1 : Form
     private BatchProcessor? batchProcessor;
     private CancellationTokenSource? cancellationTokenSource;
     
+    // IDE features
+    private RichTextBox codeEditor = null!;
+    private TreeView projectExplorer = null!;
+    private TextBox projectPathTextBox = null!;
+    private Button createProjectButton = null!;
+    private Button openProjectButton = null!;
+    private Button saveFileButton = null!;
+    private Button runCodeButton = null!;
+    private ListBox errorListBox = null!;
+    private TabControl editorTabControl = null!;
+    
     // Extraction panel controls
     private TabControl extractionTabControl = null!;
     private RichTextBox browserLogsTextBox = null!;
@@ -169,7 +180,14 @@ public partial class Form1 : Form
         advancedTab.Controls.Add(advancedPanel);
         mainTabControl.TabPages.Add(advancedTab);
         
-        // Tab 4: Results & Logs
+        // Tab 4: Code Editor & IDE
+        var ideTab = new TabPage("💻 Code Editor & IDE");
+        ideTab.BackColor = Color.White;
+        var idePanel = CreateIDEPanel();
+        ideTab.Controls.Add(idePanel);
+        mainTabControl.TabPages.Add(ideTab);
+        
+        // Tab 5: Results & Logs
         var resultsTab = new TabPage("📊 Results & Logs");
         resultsTab.BackColor = Color.White;
         var resultsPanel = CreateResultsPanel();
@@ -599,6 +617,280 @@ public partial class Form1 : Form
         this.debugModeCheck = debugModeCheck;
         
         return panel;
+    }
+
+    private Panel CreateIDEPanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
+        
+        // Create main splitter for IDE layout
+        var mainSplitter = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            SplitterDistance = 500,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        
+        // Top panel for main IDE interface
+        var topSplitter = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Vertical,
+            SplitterDistance = 250,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        
+        // Left panel: Project Explorer and Tools
+        var leftPanel = CreateProjectExplorerPanel();
+        topSplitter.Panel1.Controls.Add(leftPanel);
+        
+        // Right panel: Code Editor and Tabs
+        var rightPanel = CreateCodeEditorPanel();
+        topSplitter.Panel2.Controls.Add(rightPanel);
+        
+        mainSplitter.Panel1.Controls.Add(topSplitter);
+        
+        // Bottom panel: Error List and Output
+        var bottomPanel = CreateOutputPanel();
+        mainSplitter.Panel2.Controls.Add(bottomPanel);
+        
+        panel.Controls.Add(mainSplitter);
+        
+        return panel;
+    }
+
+    private Panel CreateProjectExplorerPanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
+        
+        // Project controls
+        var projectGroup = new GroupBox
+        {
+            Text = "📁 Project Explorer",
+            Dock = DockStyle.Top,
+            Height = 200,
+            Font = new Font("Arial", 9, FontStyle.Bold),
+            ForeColor = Color.DarkBlue
+        };
+        
+        var projectLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            Padding = new Padding(5)
+        };
+        
+        // Project path
+        projectPathTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Text = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "\\RawrZProjects",
+            Font = new Font("Consolas", 9)
+        };
+        projectLayout.Controls.Add(projectPathTextBox, 0, 0);
+        
+        // Project buttons
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true
+        };
+        
+        createProjectButton = new Button
+        {
+            Text = "New Project",
+            Size = new Size(80, 25),
+            BackColor = Color.Green,
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat
+        };
+        createProjectButton.Click += CreateProjectButton_Click;
+        
+        openProjectButton = new Button
+        {
+            Text = "Open Project",
+            Size = new Size(80, 25),
+            BackColor = Color.Blue,
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat
+        };
+        openProjectButton.Click += OpenProjectButton_Click;
+        
+        buttonPanel.Controls.Add(createProjectButton);
+        buttonPanel.Controls.Add(openProjectButton);
+        projectLayout.Controls.Add(buttonPanel, 0, 1);
+        
+        // Project tree
+        projectExplorer = new TreeView
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Arial", 9),
+            ShowLines = true,
+            ShowPlusMinus = true,
+            ShowRootLines = true
+        };
+        projectExplorer.NodeMouseDoubleClick += ProjectExplorer_NodeDoubleClick;
+        projectLayout.Controls.Add(projectExplorer, 0, 2);
+        
+        projectGroup.Controls.Add(projectLayout);
+        panel.Controls.Add(projectGroup);
+        
+        // Tools group
+        var toolsGroup = new GroupBox
+        {
+            Text = "🔧 IDE Tools",
+            Dock = DockStyle.Fill,
+            Font = new Font("Arial", 9, FontStyle.Bold),
+            ForeColor = Color.DarkBlue
+        };
+        
+        var toolsLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(5)
+        };
+        
+        var templatesButton = new Button
+        {
+            Text = "📄 Code Templates",
+            Height = 30,
+            Dock = DockStyle.Fill,
+            BackColor = Color.LightBlue,
+            FlatStyle = FlatStyle.Flat
+        };
+        templatesButton.Click += TemplatesButton_Click;
+        
+        var snippetsButton = new Button
+        {
+            Text = "✂️ Code Snippets",
+            Height = 30,
+            Dock = DockStyle.Fill,
+            BackColor = Color.LightGreen,
+            FlatStyle = FlatStyle.Flat
+        };
+        snippetsButton.Click += SnippetsButton_Click;
+        
+        var helpButton = new Button
+        {
+            Text = "❓ Help & Docs",
+            Height = 30,
+            Dock = DockStyle.Fill,
+            BackColor = Color.LightCoral,
+            FlatStyle = FlatStyle.Flat
+        };
+        helpButton.Click += HelpButton_Click;
+        
+        toolsLayout.Controls.Add(templatesButton, 0, 0);
+        toolsLayout.Controls.Add(snippetsButton, 0, 1);
+        toolsLayout.Controls.Add(helpButton, 0, 2);
+        
+        toolsGroup.Controls.Add(toolsLayout);
+        panel.Controls.Add(toolsGroup);
+        
+        return panel;
+    }
+
+    private Panel CreateCodeEditorPanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
+        
+        // Editor toolbar
+        var toolbar = new ToolStrip
+        {
+            Dock = DockStyle.Top,
+            BackColor = Color.LightGray
+        };
+        
+        var newFileButton = new ToolStripButton("📄 New", null, NewFileButton_Click);
+        var openFileButton = new ToolStripButton("📂 Open", null, OpenFileButton_Click);
+        var saveFileButton = new ToolStripButton("💾 Save", null, SaveFileButton_Click);
+        var separator1 = new ToolStripSeparator();
+        var runCodeButton = new ToolStripButton("▶️ Run", null, RunCodeButton_Click);
+        var buildButton = new ToolStripButton("🔨 Build", null, BuildButton_Click);
+        var separator2 = new ToolStripSeparator();
+        var formatButton = new ToolStripButton("🎨 Format", null, FormatButton_Click);
+        
+        toolbar.Items.AddRange(new ToolStripItem[]
+        {
+            newFileButton, openFileButton, saveFileButton, separator1,
+            runCodeButton, buildButton, separator2, formatButton
+        });
+        
+        panel.Controls.Add(toolbar);
+        
+        // Editor tabs
+        editorTabControl = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Arial", 9),
+            ShowToolTips = true
+        };
+        
+        // Add default tab
+        AddNewEditorTab("Program.cs", GetDefaultCodeTemplate());
+        
+        panel.Controls.Add(editorTabControl);
+        
+        return panel;
+    }
+
+    private Panel CreateOutputPanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5) };
+        
+        var outputTabs = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Arial", 9)
+        };
+        
+        // Error List tab
+        var errorTab = new TabPage("❌ Error List");
+        errorListBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 9),
+            BackColor = Color.White,
+            ForeColor = Color.Red
+        };
+        errorTab.Controls.Add(errorListBox);
+        outputTabs.TabPages.Add(errorTab);
+        
+        // Output tab
+        var outputTab = new TabPage("📝 Output");
+        var outputTextBox = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 9),
+            BackColor = Color.Black,
+            ForeColor = Color.Lime,
+            ReadOnly = true
+        };
+        outputTab.Controls.Add(outputTextBox);
+        outputTabs.TabPages.Add(outputTab);
+        
+        // Console tab
+        var consoleTab = new TabPage("💻 Debug Console");
+        var consoleTextBox = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 9),
+            BackColor = Color.DarkBlue,
+            ForeColor = Color.White,
+            ReadOnly = true
+        };
+        consoleTab.Controls.Add(consoleTextBox);
+        outputTabs.TabPages.Add(consoleTab);
+        
+        panel.Controls.Add(outputTabs);
+        
+        return panel;
+    }
     }
     
     private Panel CreateResultsPanel()
@@ -2097,5 +2389,651 @@ public partial class Form1 : Form
         {
             MessageBox.Show($"Failed to export logs: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    // IDE Event Handlers and Helper Methods
+    
+    private void CreateProjectButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            var folderDialog = new FolderBrowserDialog
+            {
+                Description = "Select or create a folder for your new project",
+                SelectedPath = projectPathTextBox.Text
+            };
+
+            if (folderDialog.ShowDialog() == DialogResult.OK)
+            {
+                var projectName = Path.GetFileName(folderDialog.SelectedPath);
+                if (string.IsNullOrEmpty(projectName))
+                    projectName = "NewProject";
+
+                projectPathTextBox.Text = folderDialog.SelectedPath;
+                
+                // Create project structure
+                Directory.CreateDirectory(folderDialog.SelectedPath);
+                var mainFile = Path.Combine(folderDialog.SelectedPath, "Program.cs");
+                
+                if (!File.Exists(mainFile))
+                {
+                    File.WriteAllText(mainFile, GetDefaultCodeTemplate());
+                }
+
+                LoadProjectInExplorer(folderDialog.SelectedPath);
+                AddNewEditorTab("Program.cs", File.ReadAllText(mainFile));
+                
+                MessageBox.Show($"Project '{projectName}' created successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error creating project: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OpenProjectButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            var folderDialog = new FolderBrowserDialog
+            {
+                Description = "Select a project folder to open",
+                SelectedPath = projectPathTextBox.Text
+            };
+
+            if (folderDialog.ShowDialog() == DialogResult.OK)
+            {
+                projectPathTextBox.Text = folderDialog.SelectedPath;
+                LoadProjectInExplorer(folderDialog.SelectedPath);
+                
+                // Open main file if exists
+                var mainFile = Path.Combine(folderDialog.SelectedPath, "Program.cs");
+                if (File.Exists(mainFile))
+                {
+                    AddNewEditorTab("Program.cs", File.ReadAllText(mainFile));
+                }
+                
+                MessageBox.Show("Project loaded successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening project: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void LoadProjectInExplorer(string projectPath)
+    {
+        try
+        {
+            projectExplorer.Nodes.Clear();
+            
+            var rootNode = new TreeNode(Path.GetFileName(projectPath))
+            {
+                Tag = projectPath,
+                ImageIndex = 0
+            };
+            
+            LoadDirectoryNodes(rootNode, projectPath);
+            projectExplorer.Nodes.Add(rootNode);
+            rootNode.Expand();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error loading project explorer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void LoadDirectoryNodes(TreeNode parentNode, string directoryPath)
+    {
+        try
+        {
+            // Add directories
+            foreach (var directory in Directory.GetDirectories(directoryPath))
+            {
+                var dirNode = new TreeNode(Path.GetFileName(directory))
+                {
+                    Tag = directory,
+                    ImageIndex = 0
+                };
+                LoadDirectoryNodes(dirNode, directory);
+                parentNode.Nodes.Add(dirNode);
+            }
+
+            // Add files
+            foreach (var file in Directory.GetFiles(directoryPath))
+            {
+                var fileNode = new TreeNode(Path.GetFileName(file))
+                {
+                    Tag = file,
+                    ImageIndex = 1
+                };
+                parentNode.Nodes.Add(fileNode);
+            }
+        }
+        catch (Exception)
+        {
+            // Handle access denied or other file system errors silently
+        }
+    }
+
+    private void ProjectExplorer_NodeDoubleClick(object? sender, TreeNodeMouseClickEventArgs e)
+    {
+        try
+        {
+            if (e.Node.Tag is string filePath && File.Exists(filePath))
+            {
+                var content = File.ReadAllText(filePath);
+                var fileName = Path.GetFileName(filePath);
+                AddNewEditorTab(fileName, content);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void AddNewEditorTab(string fileName, string content)
+    {
+        // Check if tab already exists
+        foreach (TabPage tab in editorTabControl.TabPages)
+        {
+            if (tab.Text == fileName)
+            {
+                editorTabControl.SelectedTab = tab;
+                return;
+            }
+        }
+
+        var tabPage = new TabPage(fileName)
+        {
+            ToolTipText = fileName
+        };
+
+        var editor = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 10),
+            Text = content,
+            BackColor = Color.White,
+            ForeColor = Color.Black,
+            AcceptsTab = true,
+            EnableAutoDragDrop = false,
+            WordWrap = false,
+            ScrollBars = RichTextBoxScrollBars.Both
+        };
+
+        // Basic syntax highlighting
+        editor.TextChanged += Editor_TextChanged;
+        ApplySyntaxHighlighting(editor);
+
+        tabPage.Controls.Add(editor);
+        editorTabControl.TabPages.Add(tabPage);
+        editorTabControl.SelectedTab = tabPage;
+    }
+
+    private void Editor_TextChanged(object? sender, EventArgs e)
+    {
+        if (sender is RichTextBox editor)
+        {
+            ApplySyntaxHighlighting(editor);
+        }
+    }
+
+    private void ApplySyntaxHighlighting(RichTextBox editor)
+    {
+        try
+        {
+            // Save current position
+            var currentSelectionStart = editor.SelectionStart;
+            var currentSelectionLength = editor.SelectionLength;
+
+            // Reset formatting
+            editor.SelectAll();
+            editor.SelectionColor = Color.Black;
+            editor.SelectionFont = new Font("Consolas", 10, FontStyle.Regular);
+
+            // Highlight C# keywords
+            string[] keywords = { "using", "namespace", "class", "public", "private", "static", "void", "int", "string", "bool", "var", "if", "else", "for", "while", "foreach", "return", "new", "this", "base", "try", "catch", "finally", "throw", "async", "await" };
+            
+            foreach (var keyword in keywords)
+            {
+                HighlightText(editor, keyword, Color.Blue, FontStyle.Bold);
+            }
+
+            // Highlight strings
+            HighlightStrings(editor);
+
+            // Highlight comments
+            HighlightComments(editor);
+
+            // Restore selection
+            editor.SelectionStart = currentSelectionStart;
+            editor.SelectionLength = currentSelectionLength;
+        }
+        catch (Exception)
+        {
+            // Ignore syntax highlighting errors
+        }
+    }
+
+    private void HighlightText(RichTextBox editor, string text, Color color, FontStyle style)
+    {
+        int index = 0;
+        while ((index = editor.Text.IndexOf(text, index, StringComparison.OrdinalIgnoreCase)) != -1)
+        {
+            // Check if it's a whole word
+            bool isWholeWord = (index == 0 || !char.IsLetterOrDigit(editor.Text[index - 1])) &&
+                              (index + text.Length == editor.Text.Length || !char.IsLetterOrDigit(editor.Text[index + text.Length]));
+
+            if (isWholeWord)
+            {
+                editor.SelectionStart = index;
+                editor.SelectionLength = text.Length;
+                editor.SelectionColor = color;
+                editor.SelectionFont = new Font("Consolas", 10, style);
+            }
+            index += text.Length;
+        }
+    }
+
+    private void HighlightStrings(RichTextBox editor)
+    {
+        var text = editor.Text;
+        bool inString = false;
+        int stringStart = 0;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '"' && (i == 0 || text[i - 1] != '\\'))
+            {
+                if (!inString)
+                {
+                    inString = true;
+                    stringStart = i;
+                }
+                else
+                {
+                    inString = false;
+                    editor.SelectionStart = stringStart;
+                    editor.SelectionLength = i - stringStart + 1;
+                    editor.SelectionColor = Color.Brown;
+                }
+            }
+        }
+    }
+
+    private void HighlightComments(RichTextBox editor)
+    {
+        var lines = editor.Text.Split('\n');
+        int currentPos = 0;
+
+        foreach (var line in lines)
+        {
+            var commentIndex = line.IndexOf("//");
+            if (commentIndex >= 0)
+            {
+                editor.SelectionStart = currentPos + commentIndex;
+                editor.SelectionLength = line.Length - commentIndex;
+                editor.SelectionColor = Color.Green;
+                editor.SelectionFont = new Font("Consolas", 10, FontStyle.Italic);
+            }
+            currentPos += line.Length + 1; // +1 for newline
+        }
+    }
+
+    private string GetDefaultCodeTemplate()
+    {
+        return @"using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace RawrZProject
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine(""Hello from RawrZ IDE!"");
+            Console.WriteLine(""Welcome to your new project!"");
+            
+            // Your code here...
+            
+            Console.ReadKey();
+        }
+    }
+}";
+    }
+
+    // IDE Toolbar Event Handlers
+    private void NewFileButton_Click(object? sender, EventArgs e)
+    {
+        AddNewEditorTab("NewFile.cs", GetDefaultCodeTemplate());
+    }
+
+    private void OpenFileButton_Click(object? sender, EventArgs e)
+    {
+        var openDialog = new OpenFileDialog
+        {
+            Filter = "C# files (*.cs)|*.cs|All files (*.*)|*.*",
+            Title = "Open Code File"
+        };
+
+        if (openDialog.ShowDialog() == DialogResult.OK)
+        {
+            try
+            {
+                var content = File.ReadAllText(openDialog.FileName);
+                var fileName = Path.GetFileName(openDialog.FileName);
+                AddNewEditorTab(fileName, content);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private void SaveFileButton_Click(object? sender, EventArgs e)
+    {
+        if (editorTabControl.SelectedTab != null)
+        {
+            var saveDialog = new SaveFileDialog
+            {
+                Filter = "C# files (*.cs)|*.cs|All files (*.*)|*.*",
+                Title = "Save Code File",
+                FileName = editorTabControl.SelectedTab.Text
+            };
+
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    var editor = editorTabControl.SelectedTab.Controls[0] as RichTextBox;
+                    File.WriteAllText(saveDialog.FileName, editor?.Text ?? "");
+                    MessageBox.Show("File saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error saving file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+    }
+
+    private async void RunCodeButton_Click(object? sender, EventArgs e)
+    {
+        if (editorTabControl.SelectedTab?.Controls[0] is RichTextBox editor)
+        {
+            try
+            {
+                errorListBox.Items.Clear();
+                
+                var tempFile = Path.GetTempFileName() + ".cs";
+                File.WriteAllText(tempFile, editor.Text);
+                
+                var result = await CompileWithRoslyn(editor.Text, tempFile);
+                
+                if (result.Success && !string.IsNullOrEmpty(result.OutputPath))
+                {
+                    MessageBox.Show($"Code compiled successfully!\nOutput: {result.OutputPath}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    // Optionally run the executable
+                    var runResult = MessageBox.Show("Would you like to run the compiled program?", "Run Program", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (runResult == DialogResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(result.OutputPath);
+                    }
+                }
+                else
+                {
+                    errorListBox.Items.Add($"Compilation failed: {result.Error}");
+                    MessageBox.Show($"Compilation failed:\n{result.Error}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                
+                File.Delete(tempFile);
+            }
+            catch (Exception ex)
+            {
+                errorListBox.Items.Add($"Runtime error: {ex.Message}");
+                MessageBox.Show($"Error running code: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private void BuildButton_Click(object? sender, EventArgs e)
+    {
+        MessageBox.Show("Build functionality will be implemented with project system improvements.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void FormatButton_Click(object? sender, EventArgs e)
+    {
+        if (editorTabControl.SelectedTab?.Controls[0] is RichTextBox editor)
+        {
+            // Basic code formatting
+            try
+            {
+                var lines = editor.Text.Split('\n');
+                var formattedLines = new List<string>();
+                int indentLevel = 0;
+
+                foreach (var line in lines)
+                {
+                    var trimmedLine = line.Trim();
+                    
+                    if (trimmedLine.Contains("}"))
+                        indentLevel = Math.Max(0, indentLevel - 1);
+                    
+                    formattedLines.Add(new string(' ', indentLevel * 4) + trimmedLine);
+                    
+                    if (trimmedLine.Contains("{"))
+                        indentLevel++;
+                }
+
+                editor.Text = string.Join("\n", formattedLines);
+                MessageBox.Show("Code formatted successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error formatting code: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private void TemplatesButton_Click(object? sender, EventArgs e)
+    {
+        var templates = new Dictionary<string, string>
+        {
+            ["Console Application"] = GetDefaultCodeTemplate(),
+            ["Class Template"] = GetClassTemplate(),
+            ["Interface Template"] = GetInterfaceTemplate(),
+            ["Engine Template"] = GetEngineTemplate()
+        };
+
+        var templateForm = new Form
+        {
+            Text = "Code Templates",
+            Size = new Size(600, 400),
+            StartPosition = FormStartPosition.CenterParent
+        };
+
+        var listBox = new ListBox
+        {
+            Dock = DockStyle.Left,
+            Width = 200
+        };
+        listBox.Items.AddRange(templates.Keys.ToArray());
+
+        var previewBox = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            Font = new Font("Consolas", 9)
+        };
+
+        var buttonPanel = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 40
+        };
+
+        var useButton = new Button
+        {
+            Text = "Use Template",
+            Size = new Size(100, 30),
+            Location = new Point(10, 5),
+            BackColor = Color.Green,
+            ForeColor = Color.White
+        };
+
+        listBox.SelectedIndexChanged += (s, e) =>
+        {
+            if (listBox.SelectedItem != null)
+            {
+                previewBox.Text = templates[listBox.SelectedItem.ToString()!];
+            }
+        };
+
+        useButton.Click += (s, e) =>
+        {
+            if (listBox.SelectedItem != null)
+            {
+                var templateName = listBox.SelectedItem.ToString()!;
+                AddNewEditorTab($"{templateName}.cs", templates[templateName]);
+                templateForm.Close();
+            }
+        };
+
+        buttonPanel.Controls.Add(useButton);
+        templateForm.Controls.Add(previewBox);
+        templateForm.Controls.Add(listBox);
+        templateForm.Controls.Add(buttonPanel);
+
+        templateForm.ShowDialog();
+    }
+
+    private void SnippetsButton_Click(object? sender, EventArgs e)
+    {
+        MessageBox.Show("Code snippets functionality will be enhanced in future updates.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void HelpButton_Click(object? sender, EventArgs e)
+    {
+        var helpText = @"RawrZ IDE Help
+
+Keyboard Shortcuts:
+- Ctrl+N: New File
+- Ctrl+O: Open File  
+- Ctrl+S: Save File
+- F5: Run Code
+- Ctrl+Shift+F: Format Code
+
+Features:
+- Syntax highlighting for C# code
+- Project explorer for file management
+- Integrated compiler using Roslyn
+- Error detection and reporting
+- Code templates and snippets
+
+Tips:
+- Double-click files in project explorer to open them
+- Use the toolbar buttons for quick access to common actions
+- Check the Error List tab for compilation errors
+- Use code templates to quickly create common code patterns";
+
+        MessageBox.Show(helpText, "RawrZ IDE Help", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private string GetClassTemplate()
+    {
+        return @"using System;
+
+namespace RawrZProject
+{
+    public class NewClass
+    {
+        // Properties
+        public string Name { get; set; }
+        
+        // Constructor
+        public NewClass()
+        {
+            
+        }
+        
+        // Methods
+        public void DoSomething()
+        {
+            // Implementation here
+        }
+    }
+}";
+    }
+
+    private string GetInterfaceTemplate()
+    {
+        return @"using System;
+
+namespace RawrZProject
+{
+    public interface INewInterface
+    {
+        // Properties
+        string Name { get; set; }
+        
+        // Methods
+        void DoSomething();
+        bool TryDoSomething(out string result);
+    }
+}";
+    }
+
+    private string GetEngineTemplate()
+    {
+        return @"using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using RawrZDesktop.Engines;
+
+namespace RawrZProject
+{
+    public class NewEngine : IEngine
+    {
+        public string Name => ""New Engine"";
+        public string Description => ""A new custom engine"";
+        public string Version => ""1.0.0"";
+
+        public async Task<EngineResult> ExecuteAsync(Dictionary<string, object> parameters)
+        {
+            try
+            {
+                // Your engine implementation here
+                
+                return new EngineResult
+                {
+                    Success = true,
+                    Data = null,
+                    ProcessingTimeMs = 0,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        [""operation""] = ""custom_operation""
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                return new EngineResult
+                {
+                    Success = false,
+                    Error = ex.Message
+                };
+            }
+        }
+    }
+}";
     }
 }
