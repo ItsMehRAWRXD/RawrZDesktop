@@ -11,6 +11,8 @@
   <ItemGroup>
     <Compile Include="IDETestConsole.cs" />
     <Compile Include="TestProgram.cs" />
+    <Compile Include="IntelliSenseProvider.cs" />
+    <Compile Include="CodeFormatter.cs" />
   </ItemGroup>
 
   <ItemGroup>

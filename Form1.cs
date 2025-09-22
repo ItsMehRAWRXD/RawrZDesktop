@@ -52,6 +52,9 @@ public partial class Form1 : Form
     private Button runCodeButton = null!;
     private ListBox errorListBox = null!;
     private TabControl editorTabControl = null!;
+    private IntelliSenseProvider intelliSenseProvider = null!;
+    private ListBox completionListBox = null!;
+    private bool showingCompletion = false;
     
     // Extraction panel controls
     private TabControl extractionTabControl = null!;
@@ -103,6 +106,7 @@ public partial class Form1 : Form
             {
                 engineManager = new EngineManager();
                 batchProcessor = new BatchProcessor();
+                intelliSenseProvider = new IntelliSenseProvider();
             }
             catch (Exception ex)
             {
@@ -814,11 +818,16 @@ public partial class Form1 : Form
         var buildButton = new ToolStripButton("🔨 Build", null, BuildButton_Click);
         var separator2 = new ToolStripSeparator();
         var formatButton = new ToolStripButton("🎨 Format", null, FormatButton_Click);
+        var optimizeButton = new ToolStripButton("⚡ Optimize", null, OptimizeButton_Click);
+        var separator3 = new ToolStripSeparator();
+        var intelliSenseButton = new ToolStripButton("💡 IntelliSense", null, IntelliSenseButton_Click);
+        var snippetsButton = new ToolStripButton("✂️ Snippets", null, SnippetsToolbarButton_Click);
         
         toolbar.Items.AddRange(new ToolStripItem[]
         {
             newFileButton, openFileButton, saveFileButton, separator1,
-            runCodeButton, buildButton, separator2, formatButton
+            runCodeButton, buildButton, separator2, formatButton, optimizeButton,
+            separator3, intelliSenseButton, snippetsButton
         });
         
         panel.Controls.Add(toolbar);
@@ -2567,9 +2576,23 @@ public partial class Form1 : Form
 
         // Basic syntax highlighting
         editor.TextChanged += Editor_TextChanged;
+        editor.KeyDown += Editor_KeyDown;
+        editor.KeyPress += Editor_KeyPress;
         ApplySyntaxHighlighting(editor);
 
+        // Create completion listbox (initially hidden)
+        completionListBox = new ListBox
+        {
+            Visible = false,
+            Font = new Font("Consolas", 9),
+            BackColor = Color.LightYellow,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        completionListBox.DoubleClick += CompletionListBox_DoubleClick;
+        completionListBox.KeyDown += CompletionListBox_KeyDown;
+
         tabPage.Controls.Add(editor);
+        tabPage.Controls.Add(completionListBox);
         editorTabControl.TabPages.Add(tabPage);
         editorTabControl.SelectedTab = tabPage;
     }
@@ -2579,6 +2602,158 @@ public partial class Form1 : Form
         if (sender is RichTextBox editor)
         {
             ApplySyntaxHighlighting(editor);
+            UpdateErrorList(editor.Text);
+        }
+    }
+
+    private void Editor_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is RichTextBox editor)
+        {
+            if (e.Control && e.KeyCode == Keys.Space)
+            {
+                // Ctrl+Space for IntelliSense
+                ShowIntelliSense(editor);
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Escape && showingCompletion)
+            {
+                // Hide completion on Escape
+                HideIntelliSense();
+                e.Handled = true;
+            }
+            else if (showingCompletion && (e.KeyCode == Keys.Up || e.KeyCode == Keys.Down))
+            {
+                // Navigate completion list
+                if (e.KeyCode == Keys.Up && completionListBox.SelectedIndex > 0)
+                    completionListBox.SelectedIndex--;
+                else if (e.KeyCode == Keys.Down && completionListBox.SelectedIndex < completionListBox.Items.Count - 1)
+                    completionListBox.SelectedIndex++;
+                e.Handled = true;
+            }
+            else if (showingCompletion && e.KeyCode == Keys.Enter)
+            {
+                // Accept completion
+                AcceptCompletion(editor);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void Editor_KeyPress(object? sender, KeyPressEventArgs e)
+    {
+        if (sender is RichTextBox editor)
+        {
+            if (e.KeyChar == '.')
+            {
+                // Show member completion after dot
+                Application.DoEvents(); // Let the dot be inserted first
+                ShowIntelliSense(editor);
+            }
+            else if (showingCompletion && !char.IsLetterOrDigit(e.KeyChar) && e.KeyChar != '_')
+            {
+                // Hide completion on non-identifier characters
+                HideIntelliSense();
+            }
+        }
+    }
+
+    private void ShowIntelliSense(RichTextBox editor)
+    {
+        try
+        {
+            var completions = intelliSenseProvider.GetCompletions(editor.Text, editor.SelectionStart);
+            
+            if (completions.Count > 0)
+            {
+                completionListBox.Items.Clear();
+                completionListBox.Items.AddRange(completions.ToArray());
+                
+                // Position the completion list
+                var position = editor.GetPositionFromCharIndex(editor.SelectionStart);
+                completionListBox.Location = new Point(position.X, position.Y + 20);
+                completionListBox.Size = new Size(200, Math.Min(150, completions.Count * 16 + 5));
+                completionListBox.Visible = true;
+                completionListBox.BringToFront();
+                completionListBox.SelectedIndex = 0;
+                showingCompletion = true;
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore IntelliSense errors
+        }
+    }
+
+    private void HideIntelliSense()
+    {
+        completionListBox.Visible = false;
+        showingCompletion = false;
+    }
+
+    private void AcceptCompletion(RichTextBox editor)
+    {
+        if (completionListBox.SelectedItem != null)
+        {
+            var completion = completionListBox.SelectedItem.ToString()!;
+            var currentPos = editor.SelectionStart;
+            
+            // Find the start of the current word
+            var start = currentPos - 1;
+            while (start >= 0 && (char.IsLetterOrDigit(editor.Text[start]) || editor.Text[start] == '_'))
+                start--;
+            start++;
+
+            // Replace the current word with the completion
+            editor.Select(start, currentPos - start);
+            editor.SelectedText = completion;
+            
+            HideIntelliSense();
+        }
+    }
+
+    private void CompletionListBox_DoubleClick(object? sender, EventArgs e)
+    {
+        var activeEditor = editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault();
+        if (activeEditor != null)
+        {
+            AcceptCompletion(activeEditor);
+        }
+    }
+
+    private void CompletionListBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Enter)
+        {
+            var activeEditor = editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault();
+            if (activeEditor != null)
+            {
+                AcceptCompletion(activeEditor);
+                e.Handled = true;
+            }
+        }
+        else if (e.KeyCode == Keys.Escape)
+        {
+            HideIntelliSense();
+            e.Handled = true;
+        }
+    }
+
+    private void UpdateErrorList(string code)
+    {
+        try
+        {
+            var diagnostics = intelliSenseProvider.GetDiagnostics(code);
+            
+            errorListBox.Items.Clear();
+            foreach (var diagnostic in diagnostics)
+            {
+                errorListBox.Items.Add(diagnostic.ToString());
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore error checking failures
         }
     }
 
@@ -2810,31 +2985,91 @@ namespace RawrZProject
         MessageBox.Show("Build functionality will be implemented with project system improvements.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private void FormatButton_Click(object? sender, EventArgs e)
+    private void OptimizeButton_Click(object? sender, EventArgs e)
     {
-        if (editorTabControl.SelectedTab?.Controls[0] is RichTextBox editor)
+        if (editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault() is RichTextBox editor)
         {
-            // Basic code formatting
             try
             {
-                var lines = editor.Text.Split('\n');
-                var formattedLines = new List<string>();
-                int indentLevel = 0;
+                var optimizedCode = CodeFormatter.OptimizeUsings(editor.Text);
+                editor.Text = optimizedCode;
+                MessageBox.Show("Code optimized successfully! Unused usings removed and sorted.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error optimizing code: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
 
-                foreach (var line in lines)
+    private void IntelliSenseButton_Click(object? sender, EventArgs e)
+    {
+        var activeEditor = editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault();
+        if (activeEditor != null)
+        {
+            ShowIntelliSense(activeEditor);
+        }
+    }
+
+    private void SnippetsToolbarButton_Click(object? sender, EventArgs e)
+    {
+        var snippets = intelliSenseProvider.GetSnippets();
+        
+        var snippetForm = new Form
+        {
+            Text = "Code Snippets",
+            Size = new Size(400, 300),
+            StartPosition = FormStartPosition.CenterParent
+        };
+
+        var listBox = new ListBox
+        {
+            Dock = DockStyle.Fill
+        };
+        listBox.Items.AddRange(snippets.ToArray());
+
+        var useButton = new Button
+        {
+            Text = "Insert Snippet",
+            Dock = DockStyle.Bottom,
+            Height = 30,
+            BackColor = Color.Green,
+            ForeColor = Color.White
+        };
+
+        useButton.Click += (s, e) =>
+        {
+            if (listBox.SelectedItem != null)
+            {
+                var snippet = intelliSenseProvider.ExpandSnippet(listBox.SelectedItem.ToString()!);
+                var activeEditor = editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault();
+                if (activeEditor != null)
                 {
-                    var trimmedLine = line.Trim();
-                    
-                    if (trimmedLine.Contains("}"))
-                        indentLevel = Math.Max(0, indentLevel - 1);
-                    
-                    formattedLines.Add(new string(' ', indentLevel * 4) + trimmedLine);
-                    
-                    if (trimmedLine.Contains("{"))
-                        indentLevel++;
+                    activeEditor.SelectedText = snippet;
                 }
+                snippetForm.Close();
+            }
+        };
 
-                editor.Text = string.Join("\n", formattedLines);
+        snippetForm.Controls.Add(listBox);
+        snippetForm.Controls.Add(useButton);
+        snippetForm.ShowDialog();
+    }
+
+    private void FormatButton_Click(object? sender, EventArgs e)
+    {
+        if (editorTabControl.SelectedTab?.Controls.OfType<RichTextBox>().FirstOrDefault() is RichTextBox editor)
+        {
+            try
+            {
+                var originalPosition = editor.SelectionStart;
+                var formattedCode = CodeFormatter.FormatCode(editor.Text);
+                
+                editor.Text = formattedCode;
+                
+                // Restore cursor position (approximately)
+                editor.SelectionStart = Math.Min(originalPosition, editor.Text.Length);
+                
                 MessageBox.Show("Code formatted successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

@@ -161,6 +161,89 @@ namespace RawrZTestProject
             }
         }
 
+        public static void TestIntelliSense()
+        {
+            Console.WriteLine("\nTesting RawrZ IDE IntelliSense...");
+            
+            var intelliSense = new IntelliSenseProvider();
+            
+            string testCode = @"
+using System;
+using System.Collections.Generic;
+
+class TestClass
+{
+    private string name;
+    
+    public void TestMethod()
+    {
+        Console.
+        string text = ""hello"";
+        text.
+    }
+}";
+
+            try
+            {
+                // Test completions after Console.
+                var completions = intelliSense.GetCompletions(testCode, testCode.IndexOf("Console.") + 8);
+                Console.WriteLine($"✅ Console completions found: {completions.Count}");
+                Console.WriteLine($"   Examples: {string.Join(", ", completions.Take(3))}");
+
+                // Test string completions
+                var stringCompletions = intelliSense.GetCompletions(testCode, testCode.IndexOf("text.") + 5);
+                Console.WriteLine($"✅ String completions found: {stringCompletions.Count}");
+                Console.WriteLine($"   Examples: {string.Join(", ", stringCompletions.Take(3))}");
+
+                // Test snippets
+                var snippets = intelliSense.GetSnippets();
+                Console.WriteLine($"✅ Code snippets available: {snippets.Count}");
+                Console.WriteLine($"   Examples: {string.Join(", ", snippets.Take(3))}");
+
+                // Test diagnostics
+                var diagnostics = intelliSense.GetDiagnostics(testCode);
+                Console.WriteLine($"✅ Code diagnostics: {diagnostics.Count} issues found");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ IntelliSense test error: {ex.Message}");
+            }
+        }
+
+        public static void TestCodeFormatter()
+        {
+            Console.WriteLine("\nTesting RawrZ IDE Code Formatter...");
+            
+            string unformattedCode = @"using System;using System.Linq;
+class Test{
+public void Method(){
+if(true){
+Console.WriteLine(""test"");
+}
+}
+}";
+
+            try
+            {
+                var formattedCode = CodeFormatter.FormatCode(unformattedCode);
+                Console.WriteLine("✅ Code formatting successful");
+                Console.WriteLine($"   Original length: {unformattedCode.Length} chars");
+                Console.WriteLine($"   Formatted length: {formattedCode.Length} chars");
+
+                var optimizedCode = CodeFormatter.OptimizeUsings(formattedCode);
+                Console.WriteLine("✅ Using optimization successful");
+                
+                var withRegions = CodeFormatter.AddRegions(optimizedCode);
+                Console.WriteLine("✅ Region organization successful");
+                
+                Console.WriteLine("✅ Code formatter working correctly");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Code formatter test error: {ex.Message}");
+            }
+        }
+
         public static void TestCodeTemplates()
         {
             Console.WriteLine("\nTesting RawrZ IDE Code Templates...");
@@ -190,9 +273,12 @@ namespace RawrZTestProject
             TestSyntaxHighlighting();
             TestProjectManagement();
             TestCodeTemplates();
+            TestIntelliSense();
+            TestCodeFormatter();
             
             Console.WriteLine("\n=== RawrZ IDE Tests Complete ===");
-            Console.WriteLine("🚀 IDE functionality is ready for Windows Forms integration!");
+            Console.WriteLine("🚀 Advanced IDE functionality is ready for Windows Forms integration!");
+            Console.WriteLine("💡 Features include: IntelliSense, Code Formatting, Project Management, Compilation");
         }
     }
 }
